@@ -48,6 +48,13 @@ impl Seedable for Perlin {
     }
 }
 
+/// 1-dimensional perlin noise
+impl NoiseFn<f64, 1> for Perlin {
+    fn get(&self, point: [f64; 1]) -> f64 {
+        perlin_1d(point, &self.perm_table)
+    }
+}
+
 /// 2-dimensional perlin noise
 impl NoiseFn<f64, 2> for Perlin {
     fn get(&self, point: [f64; 2]) -> f64 {

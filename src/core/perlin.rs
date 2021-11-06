@@ -6,6 +6,65 @@ use crate::{
     permutationtable::NoiseHasher,
 };
 use core::f64;
+use num_traits::cast::NumCast;
+
+#[inline(always)]
+pub fn perlin_1d<NH>(point: [f64; 1], hasher: &NH) -> f64
+where
+    NH: NoiseHasher + ?Sized,
+{
+    // Unscaled range of linearly interpolated perlin noise should be (-sqrt(N)/2, sqrt(N)/2).
+    // Need to invert this value and multiply the unscaled result by the value to get a scaled
+    // range of (-1, 1).
+    //
+    // 1/(sqrt(N)/2), N=1 -> 1/(1/2) = 2
+    const SCALE_FACTOR: f64 = 2.0;
+
+    let point = point[0];
+
+    #[inline(always)]
+    #[rustfmt::skip]
+    fn gradient_dot_v(perm: usize, point: f64) -> f64 {
+        match perm & 0b1 {
+            0 =>  point, // ( 1)
+            1 => -point, // (-1)
+            _ => unreachable!(),
+        }
+    }
+
+    let floored = point.floor();
+    let corner: isize = <isize as NumCast>::from(floored).unwrap();
+    let distance = point - floored;
+
+    macro_rules! call_gradient(
+        ($x:expr) => {
+            {
+                let offset = $x;
+                gradient_dot_v(
+                    hasher.hash(&[corner + offset]),
+                    distance - <f64 as NumCast>::from(offset).unwrap()
+                )
+            }
+        }
+    );
+
+    let g0 = call_gradient!(0);
+    let g1 = call_gradient!(1);
+
+    let u = distance.map_quintic();
+
+    let k0 = g0;
+    let k1 = g1 - g0;
+
+    let unscaled_result = k0 + k1 * u;
+
+    let scaled_result = unscaled_result * SCALE_FACTOR;
+
+    // At this point, we should be really damn close to the (-1, 1) range, but some float errors
+    // could have accumulated, so let's just clamp the results to (-1, 1) to cut off any
+    // outliers and return it.
+    scaled_result.clamp(-1.0, 1.0)
+}
 
 #[inline(always)]
 pub fn perlin_2d<NH>(point: [f64; 2], hasher: &NH) -> f64
