@@ -138,6 +138,39 @@ where
     }
 }
 
+/// 1-dimensional `BasicMulti` noise
+impl<T> NoiseFn<f64, 1> for BasicMulti<T>
+where
+    T: NoiseFn<f64, 1>,
+{
+    fn get(&self, mut point: [f64; 1]) -> f64 {
+        // First unscaled octave of function; later octaves are scaled.
+        point[0] *= self.frequency;
+        let mut result = self.sources[0].get(point);
+
+        // Spectral construction inner loop, where the fractal is built.
+        for x in 1..self.octaves {
+            // Raise the spatial frequency.
+            point[0] *= self.lacunarity;
+
+            // Get noise value.
+            let mut signal = self.sources[x].get(point);
+
+            // Scale the amplitude appropriately for this frequency.
+            signal *= self.persistence.powi(x as i32);
+
+            // Scale the signal by the current 'altitude' of the function.
+            signal *= result;
+
+            // Add signal to result.
+            result += signal;
+        }
+
+        // Scale the result to the [-1,1] range.
+        result * 0.5
+    }
+}
+
 /// 2-dimensional `BasicMulti` noise
 impl<T> NoiseFn<f64, 2> for BasicMulti<T>
 where
